@@ -1,4 +1,3 @@
-import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google'
 import { AccessibilityProvider } from '@/components/accessibility-provider'
@@ -21,7 +20,6 @@ export const metadata: Metadata = {
   title: 'IncluyeT · Empleo inclusivo en el Perú',
   description:
     'Plataforma de empleo inclusivo que conecta a personas con discapacidad y empresas comprometidas con la inclusión laboral en el Perú.',
-  generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
@@ -51,7 +49,6 @@ export default function RootLayout({
         <AccessibilityProvider>
           <AuthProvider>{children}</AuthProvider>
         </AccessibilityProvider>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
   )
