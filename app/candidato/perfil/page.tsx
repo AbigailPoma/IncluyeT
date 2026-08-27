@@ -1,7 +1,7 @@
 'use client'
 
 import type React from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Accessibility,
@@ -57,6 +57,21 @@ export default function CandidatoPerfilWizard() {
     numConadis: candidato?.numConadis || '',
     cvNombreFile: candidato?.cvNombreFile || '',
   })
+
+  useEffect(() => {
+    if (!candidato) return
+    const nombrePartes = candidato.nombre.trim().split(/\s+/)
+    setFormData((prev) => ({
+      ...prev,
+      nombres: nombrePartes[0] || '',
+      apellidos: nombrePartes.slice(1).join(' '),
+      bio: candidato.resumenPerfil,
+      puesto: candidato.tituloProfesional,
+      adaptaciones: candidato.adaptaciones,
+      numConadis: candidato.numConadis || '',
+      cvNombreFile: candidato.cvNombreFile || '',
+    }))
+  }, [candidato])
 
   const progress = ((step + 1) / STEPS.length) * 100
 

@@ -33,6 +33,10 @@ export interface EmpresaUser {
   razon_social: string
   email: string
   emailVerificado: boolean
+  sector?: string
+  ciudad?: string
+  colaboradores?: string
+  descripcion?: string
 }
 
 const PERFIL_DEFAULT: CandidatoUser = {

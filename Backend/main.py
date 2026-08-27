@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
@@ -82,8 +82,8 @@ class CandidatoUpdateRequest(BaseModel):
     conadisValido: bool = False
     tituloProfesional: str = ""
     resumenPerfil: str = ""
-    habilidades: list[str] = []
-    adaptaciones: list[str] = []
+    habilidades: list[str] = Field(default_factory=list)
+    adaptaciones: list[str] = Field(default_factory=list)
     cvNombreFile: str = ""
 
 class EmpresaUpdateRequest(BaseModel):
@@ -163,7 +163,13 @@ def register_candidato(request: CandidatoRegisterRequest):
             "email": request.email,
             "password": request.password,
             "options": {
-                "data": {"role": "candidato", "nombre": request.nombre, "dni": request.dni},
+                "data": {
+                    "role": "candidato",
+                    "nombre": request.nombre,
+                    "dni": request.dni,
+                    "numConadis": request.numConadis,
+                    "conadisValido": request.conadisValido,
+                },
                 "email_redirect_to": "http://localhost:3000/confirmacion?tipo=candidato",
             },
         })

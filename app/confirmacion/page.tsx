@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle2, Mail } from 'lucide-react'
 import { AccessibilityControls } from '@/components/accessibility-controls'
@@ -9,7 +9,7 @@ import { Logo } from '@/components/logo'
 import { buttonVariants } from '@/components/ui/button'
 import { useAuth } from '@/Backend/context/auth-context'
 
-export default function ConfirmacionPage() {
+function ConfirmacionContent() {
   const searchParams = useSearchParams()
   const { verifyAccount } = useAuth()
   const tipo = searchParams.get('tipo')
@@ -80,5 +80,13 @@ export default function ConfirmacionPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function ConfirmacionPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConfirmacionContent />
+    </Suspense>
   )
 }

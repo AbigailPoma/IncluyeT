@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Check, ChevronLeft, ChevronRight, HeartHandshake, ImagePlus, Info, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,6 +29,15 @@ export default function EmpresaPerfilWizard() {
   const [descripcion, setDescripcion] = useState("")
   const [error, setError] = useState("")
   const progress = ((step + 1) / STEPS.length) * 100
+
+  useEffect(() => {
+    if (!empresa) return
+    setRazonSocial(empresa.razon_social)
+    setSector(empresa.sector || "Tecnología")
+    setCiudad(empresa.ciudad || "Lima")
+    setColaboradores(empresa.colaboradores || "201-500")
+    setDescripcion(empresa.descripcion || "")
+  }, [empresa])
 
   async function handleSave() {
     try {

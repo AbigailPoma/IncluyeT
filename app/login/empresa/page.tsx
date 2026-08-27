@@ -46,7 +46,7 @@ export default function LoginEmpresaPage() {
         }}
       >
         {error && <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-medium text-rose-600">{error}</div>}
-        <Field label="RUC o correo corporativo" htmlFor="usuario" required>
+        <Field label="Correo corporativo" htmlFor="usuario" required>
           <Input
             id="usuario"
             placeholder="20123456789 o rrhh@empresa.com"

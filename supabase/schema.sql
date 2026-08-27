@@ -42,8 +42,14 @@ returns trigger language plpgsql security definer set search_path = public
 as $$
 begin
   if new.raw_user_meta_data->>'role' = 'candidato' then
-    insert into public.candidatos (id, nombre, dni)
-    values (new.id, coalesce(new.raw_user_meta_data->>'nombre', ''), coalesce(new.raw_user_meta_data->>'dni', ''));
+    insert into public.candidatos (id, nombre, dni, num_conadis, conadis_valido)
+    values (
+      new.id,
+      coalesce(new.raw_user_meta_data->>'nombre', ''),
+      coalesce(new.raw_user_meta_data->>'dni', ''),
+      coalesce(new.raw_user_meta_data->>'numConadis', ''),
+      coalesce((new.raw_user_meta_data->>'conadisValido')::boolean, false)
+    );
   elsif new.raw_user_meta_data->>'role' = 'empresa' then
     insert into public.empresas (id, ruc, razon_social)
     values (new.id, coalesce(new.raw_user_meta_data->>'ruc', ''), coalesce(new.raw_user_meta_data->>'razon_social', ''));
