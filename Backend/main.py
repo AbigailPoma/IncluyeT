@@ -13,6 +13,7 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000").rstrip("/")
 if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
     raise RuntimeError("Configura SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en Backend/.env o .env")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
@@ -170,7 +171,7 @@ def register_candidato(request: CandidatoRegisterRequest):
                     "numConadis": request.numConadis,
                     "conadisValido": request.conadisValido,
                 },
-                "email_redirect_to": "http://localhost:3000/confirmacion?tipo=candidato",
+                "email_redirect_to": f"{FRONTEND_URL}/confirmacion?tipo=candidato",
             },
         })
     except Exception as error:
@@ -191,7 +192,7 @@ def register_empresa(request: EmpresaRegisterRequest):
             "password": request.password,
             "options": {
                 "data": {"role": "empresa", "ruc": request.ruc, "razon_social": request.razon_social},
-                "email_redirect_to": "http://localhost:3000/confirmacion?tipo=empresa",
+                "email_redirect_to": f"{FRONTEND_URL}/confirmacion?tipo=empresa",
             },
         })
     except Exception as error:
