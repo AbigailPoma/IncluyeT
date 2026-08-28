@@ -19,10 +19,13 @@ async function requestAuth(path: string, body: Record<string, string | boolean>)
   return data as AuthResponse;
 }
 
-async function requestJson<T>(path: string, method: string, body?: unknown) {
+async function requestJson<T>(path: string, method: string, body?: unknown, token?: string) {
   const res = await fetch(`${API_URL}${path}`, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -110,26 +113,55 @@ export async function validarCONADIS(dni: string) {
   }
 }
 
-export function updateCandidato(userId: string, data: Record<string, unknown>) {
-  return requestJson<AuthResponse>(`/api/users/candidato/${userId}`, "PUT", data);
+export function updateCandidato(userId: string, data: Record<string, unknown>, token: string) {
+  return requestJson<AuthResponse>(`/api/users/candidato/${userId}`, "PUT", data, token);
 }
 
-export function deleteCandidato(userId: string) {
-  return fetch(`${API_URL}/api/users/candidato/${userId}`, { method: "DELETE" }).then(async (res) => {
+export function deleteCandidato(userId: string, token: string) {
+  return fetch(`${API_URL}/api/users/candidato/${userId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(async (res) => {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || "No se pudo eliminar la cuenta.");
     return data as { ok: boolean; mensaje: string };
   });
 }
 
-export function updateEmpresa(userId: string, data: Record<string, unknown>) {
-  return requestJson<AuthResponse>(`/api/users/empresa/${userId}`, "PUT", data);
+export function updateEmpresa(userId: string, data: Record<string, unknown>, token: string) {
+  return requestJson<AuthResponse>(`/api/users/empresa/${userId}`, "PUT", data, token);
 }
 
-export function deleteEmpresa(userId: string) {
-  return fetch(`${API_URL}/api/users/empresa/${userId}`, { method: "DELETE" }).then(async (res) => {
+export function deleteEmpresa(userId: string, token: string) {
+  return fetch(`${API_URL}/api/users/empresa/${userId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } }).then(async (res) => {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || "No se pudo eliminar la cuenta.");
     return data as { ok: boolean; mensaje: string };
   });
+}
+
+export interface OfertaApi {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  modality: "Remoto" | "Híbrido" | "Presencial";
+  salary: string;
+  posted: string;
+  adaptations: string[];
+  experience: string;
+  description: string;
+}
+
+export function crearOferta(token: string, data: {
+  titulo: string;
+  modalidad: "Remoto" | "Híbrido" | "Presencial";
+  ubicacion: string;
+  experiencia: string;
+  salario: string;
+  funciones: string;
+  adaptaciones: string[];
+}) {
+  return requestJson<OfertaApi>("/api/ofertas", "POST", data, token);
+}
+
+export function listarOfertas() {
+  return requestJson<OfertaApi[]>("/api/ofertas", "GET");
 }

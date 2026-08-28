@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Field, Input, Select, Textarea } from '@/components/ui/field'
+import { crearOferta } from '@/lib/api'
+import { useAuth } from '@/Backend/context/auth-context'
 
 const ADAPTACIONES_INICIALES = [
   'Trabajo remoto / teletrabajo',
@@ -32,6 +34,7 @@ const ADAPTACIONES_INICIALES = [
 ]
 
 export default function OfertaTrabajo() {
+  const { empresa } = useAuth()
   // Estado dinámico de los campos del formulario
   const [formData, setFormData] = useState({
     titulo: '',
@@ -54,6 +57,7 @@ export default function OfertaTrabajo() {
   const [loading, setLoading] = useState(false)
   const [published, setPublished] = useState(false)
   const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false)
+  const [error, setError] = useState('')
 
   // Manejador genérico para actualizar inputs
   const handleChange = (
@@ -85,18 +89,28 @@ export default function OfertaTrabajo() {
     setNuevaAdaptacion('')
   }
 
-  // Simulación dinámica de publicación
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setPublished(false)
+    setError('')
 
-    // Simula petición al backend / almacenamiento
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    setLoading(false)
-    setPublished(true)
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    try {
+      if (!empresa?.access_token) {
+        throw new Error('Tu sesión no permite publicar. Vuelve a iniciar sesión.')
+      }
+      await crearOferta(empresa.access_token, {
+        ...formData,
+        modalidad: formData.modalidad as 'Remoto' | 'Híbrido' | 'Presencial',
+        adaptaciones: seleccionadas,
+      })
+      setPublished(true)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : 'No se pudo publicar la oferta.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -144,6 +158,12 @@ export default function OfertaTrabajo() {
               Tu vacante para <strong className="text-foreground">{formData.titulo || 'el puesto'}</strong> ya está activa y lista para ser evaluada dinámicamente mediante el motor de IA.
             </p>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div role="alert" className="rounded-xl border-2 border-destructive/40 bg-destructive/10 p-4 text-sm font-medium text-destructive">
+          {error}
         </div>
       )}
 

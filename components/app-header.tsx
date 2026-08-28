@@ -14,6 +14,7 @@ import {
 import { AccessibilityControls } from '@/components/accessibility-controls'
 import { Logo } from '@/components/logo'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/Backend/context/auth-context'
 
 type Role = 'candidato' | 'empresa'
 
@@ -34,6 +35,7 @@ export function AppHeader({
 }) {
   const [showFilters, setShowFilters] = useState(false)
   const [active, setActive] = useState<string[]>([])
+  const { logout } = useAuth()
   const base = role === 'candidato' ? '/candidato' : '/empresa'
 
   function toggleFilter(f: string) {
@@ -168,13 +170,17 @@ export function AppHeader({
             />
           </Link>
 
-          <Link
-            href="/"
+          <button
+            type="button"
+            onClick={() => {
+              logout()
+              window.location.assign('/')
+            }}
             className="hidden size-10 items-center justify-center rounded-md border-2 border-input text-foreground hover:bg-muted focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring sm:inline-flex"
             aria-label="Cerrar sesión"
           >
             <LogOut className="size-5" aria-hidden="true" />
-          </Link>
+          </button>
         </div>
       </div>
     </header>

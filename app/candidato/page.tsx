@@ -1,14 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowRight, BookOpen, FileText, Filter, Lightbulb, Loader2, Sparkles } from 'lucide-react'
 import { JobCard } from '@/components/job-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { jobs } from '@/lib/data'
 import { cn } from '@/lib/utils'
-import { obtenerMatchIA } from '@/lib/api'
+import { listarOfertas, obtenerMatchIA } from '@/lib/api'
 import { useAuth } from '@/Backend/context/auth-context'
 
 const CHIPS = [
@@ -34,6 +34,21 @@ export default function CandidatoDashboard() {
   const [active, setActive] = useState('Todos')
   const [loadingIA, setLoadingIA] = useState(false)
   const [matches, setMatches] = useState<Record<string, MatchData>>({})
+  const [availableJobs, setAvailableJobs] = useState(jobs)
+
+  useEffect(() => {
+    let active = true
+    listarOfertas()
+      .then((publishedJobs) => {
+        if (active && publishedJobs.length > 0) setAvailableJobs(publishedJobs)
+      })
+      .catch(() => {
+        // El catálogo demo permite seguir usando la pantalla si la API está apagada.
+      })
+    return () => {
+      active = false
+    }
+  }, [])
 
   // Nombre y perfil dinámicos desde el estado global de autenticación
   const nombreUsuario = candidato?.nombre?.split(' ')[0] || 'María'
@@ -42,8 +57,8 @@ export default function CandidatoDashboard() {
   // Filtrado dinámico por modalidad o etiquetas de accesibilidad
   const filtered =
     active === 'Todos'
-      ? jobs
-      : jobs.filter(
+      ? availableJobs
+      : availableJobs.filter(
           (j) =>
             j.modality === active ||
             j.adaptations.some((a) => a.toLowerCase().includes(active.split(' ')[0].toLowerCase())),
@@ -54,7 +69,7 @@ export default function CandidatoDashboard() {
     setLoadingIA(true)
     try {
       const resultados = await Promise.all(
-        jobs.map(async (job) => {
+        availableJobs.map(async (job) => {
           const descripcion = `${job.title} en ${job.company}. Modalidad: ${job.modality}. Adaptaciones: ${job.adaptations.join(', ')}`
           const res = await obtenerMatchIA(perfilActivo, descripcion)
           return { id: job.id, res }

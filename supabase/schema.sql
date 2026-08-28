@@ -25,8 +25,24 @@ create table if not exists public.empresas (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.ofertas (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references public.empresas(id) on delete cascade,
+  titulo text not null,
+  modalidad text not null check (modalidad in ('Remoto', 'Híbrido', 'Presencial')),
+  ubicacion text not null default '',
+  experiencia text not null default '',
+  salario text not null default '',
+  funciones text not null,
+  adaptaciones text[] not null default '{}',
+  activa boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.candidatos enable row level security;
 alter table public.empresas enable row level security;
+alter table public.ofertas enable row level security;
 
 create policy "candidatos pueden leer su perfil"
   on public.candidatos for select using (auth.uid() = id);
@@ -36,6 +52,12 @@ create policy "empresas pueden leer su perfil"
   on public.empresas for select using (auth.uid() = id);
 create policy "empresas pueden editar su perfil"
   on public.empresas for update using (auth.uid() = id);
+create policy "cualquiera puede leer ofertas activas"
+  on public.ofertas for select using (activa = true);
+create policy "empresas pueden crear sus ofertas"
+  on public.ofertas for insert with check (auth.uid() = empresa_id);
+create policy "empresas pueden editar sus ofertas"
+  on public.ofertas for update using (auth.uid() = empresa_id);
 
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public

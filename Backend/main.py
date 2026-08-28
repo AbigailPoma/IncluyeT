@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from sentence_transformers import SentenceTransformer
@@ -27,7 +27,7 @@ app = FastAPI(
 # Configurar CORS para permitir peticiones desde Next.js (http://localhost:3000)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En producción reemplazar por el dominio exacto
+    allow_origins=[FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -94,6 +94,15 @@ class EmpresaUpdateRequest(BaseModel):
     colaboradores: str = ""
     descripcion: str = ""
 
+class OfertaCreateRequest(BaseModel):
+    titulo: str
+    modalidad: str
+    ubicacion: str = ""
+    experiencia: str = ""
+    salario: str = ""
+    funciones: str
+    adaptaciones: list[str] = Field(default_factory=list)
+
 class AuthResponse(BaseModel):
     verificado: bool
     mensaje: str
@@ -104,6 +113,42 @@ def auth_user(user: object | None) -> dict | None:
     if not user:
         return None
     return {"id": user.id, "email": user.email, "emailVerificado": user.email_confirmed_at is not None}
+
+def bearer_token(authorization: str) -> str:
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Se requiere una sesión válida.")
+    return token
+
+def authenticated_user(authorization: str) -> object:
+    try:
+        user_response = supabase.auth.get_user(bearer_token(authorization))
+    except Exception as error:
+        raise HTTPException(status_code=401, detail="La sesión no es válida.") from error
+    user = user_response.user
+    if not user:
+        raise HTTPException(status_code=401, detail="La sesión no es válida.")
+    return user
+
+def require_owner(user_id: str, tipo: str, authorization: str) -> object:
+    user = authenticated_user(authorization)
+    if user.id != user_id or user.user_metadata.get("role") != tipo:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar este perfil.")
+    return user
+
+def oferta_response(row: dict, company_name: str) -> dict:
+    return {
+        "id": row["id"],
+        "title": row["titulo"],
+        "company": company_name,
+        "location": row["ubicacion"],
+        "modality": row["modalidad"],
+        "salary": row["salario"],
+        "posted": row["created_at"],
+        "adaptations": row["adaptaciones"],
+        "experience": row["experiencia"],
+        "description": row["funciones"],
+    }
 
 def profile_row(tipo: str, user_id: str) -> dict | None:
     table = "candidatos" if tipo == "candidato" else "empresas"
@@ -238,14 +283,16 @@ def verify_account(token: str):
     return AuthResponse(verificado=True, mensaje="Cuenta verificada correctamente.", usuario=usuario)
 
 @app.put("/api/users/candidato/{user_id}", response_model=AuthResponse)
-def update_candidato(user_id: str, request: CandidatoUpdateRequest):
+def update_candidato(user_id: str, request: CandidatoUpdateRequest, authorization: str = Header(...)):
+    user = require_owner(user_id, "candidato", authorization)
     result = supabase.table("candidatos").update(request.model_dump()).eq("id", user_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Candidato no encontrado.")
-    return AuthResponse(verificado=True, mensaje="Perfil actualizado.", usuario=candidato_response(result.data[0]))
+    return AuthResponse(verificado=True, mensaje="Perfil actualizado.", usuario=candidato_response(result.data[0], user))
 
 @app.delete("/api/users/candidato/{user_id}")
-def delete_candidato(user_id: str):
+def delete_candidato(user_id: str, authorization: str = Header(...)):
+    require_owner(user_id, "candidato", authorization)
     try:
         supabase.auth.admin.delete_user(user_id)
     except Exception as error:
@@ -253,19 +300,57 @@ def delete_candidato(user_id: str):
     return {"ok": True, "mensaje": "Cuenta de candidato eliminada."}
 
 @app.put("/api/users/empresa/{user_id}", response_model=AuthResponse)
-def update_empresa(user_id: str, request: EmpresaUpdateRequest):
+def update_empresa(user_id: str, request: EmpresaUpdateRequest, authorization: str = Header(...)):
+    user = require_owner(user_id, "empresa", authorization)
     result = supabase.table("empresas").update(request.model_dump()).eq("id", user_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.")
-    return AuthResponse(verificado=True, mensaje="Perfil actualizado.", usuario=result.data[0])
+    return AuthResponse(verificado=True, mensaje="Perfil actualizado.", usuario={**result.data[0], **(auth_user(user) or {})})
 
 @app.delete("/api/users/empresa/{user_id}")
-def delete_empresa(user_id: str):
+def delete_empresa(user_id: str, authorization: str = Header(...)):
+    require_owner(user_id, "empresa", authorization)
     try:
         supabase.auth.admin.delete_user(user_id)
     except Exception as error:
         raise HTTPException(status_code=404, detail="Empresa no encontrada.") from error
     return {"ok": True, "mensaje": "Cuenta de empresa eliminada."}
+
+@app.post("/api/ofertas", response_model=dict)
+def crear_oferta(request: OfertaCreateRequest, authorization: str = Header(...)):
+    empresa = authenticated_user(authorization)
+    if empresa.user_metadata.get("role") != "empresa":
+        raise HTTPException(status_code=403, detail="Solo una empresa puede publicar ofertas.")
+    if not request.titulo.strip() or not request.funciones.strip():
+        raise HTTPException(status_code=400, detail="El título y las funciones son obligatorios.")
+    if request.modalidad not in {"Remoto", "Híbrido", "Presencial"}:
+        raise HTTPException(status_code=400, detail="La modalidad no es válida.")
+    try:
+        result = supabase.table("ofertas").insert({
+            "empresa_id": empresa.id,
+            "titulo": request.titulo.strip(),
+            "modalidad": request.modalidad,
+            "ubicacion": request.ubicacion.strip(),
+            "experiencia": request.experiencia.strip(),
+            "salario": request.salario.strip(),
+            "funciones": request.funciones.strip(),
+            "adaptaciones": request.adaptaciones,
+        }).execute()
+    except Exception as error:
+        raise HTTPException(status_code=400, detail="No se pudo publicar la oferta.") from error
+    if not result.data:
+        raise HTTPException(status_code=400, detail="No se pudo publicar la oferta.")
+    company = profile_row("empresa", empresa.id) or {}
+    return oferta_response(result.data[0], company.get("razon_social", "Empresa"))
+
+@app.get("/api/ofertas", response_model=list[dict])
+def listar_ofertas():
+    result = supabase.table("ofertas").select("*").eq("activa", True).order("created_at", desc=True).execute()
+    ofertas = []
+    for row in result.data or []:
+        company = profile_row("empresa", row["empresa_id"]) or {}
+        ofertas.append(oferta_response(row, company.get("razon_social", "Empresa")))
+    return ofertas
 
 @app.post("/api/match", response_model=MatchResponse)
 def calcular_match(request: MatchRequest):
