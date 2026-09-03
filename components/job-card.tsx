@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { Job } from '@/lib/data'
 import { obtenerMatchIA } from '@/lib/api'
+import { postularAOferta } from '@/lib/api'
+import { useAuth } from '@/Backend/context/auth-context'
 
 export interface MatchResult {
   match_percentage: number
@@ -37,9 +39,29 @@ export function JobCard({ job, perfilCandidato, matchData: propMatchData }: JobC
   const [loading, setLoading] = useState(false)
   const [localMatchData, setLocalMatchData] = useState<MatchResult | null>(null)
   const [showDetails, setShowDetails] = useState(false)
+  const [applicationMessage, setApplicationMessage] = useState('')
+  const [applying, setApplying] = useState(false)
+  const { candidato } = useAuth()
 
   // Prioriza los datos recibidos por prop (procesamiento masivo) sobre los locales
   const currentMatch = propMatchData || localMatchData
+
+  const handleApplication = async () => {
+    if (!candidato?.access_token) {
+      setApplicationMessage('Inicia sesión como candidato para postularte.')
+      return
+    }
+    setApplying(true)
+    setApplicationMessage('')
+    try {
+      await postularAOferta(job.id, candidato.access_token)
+      setApplicationMessage('Postulación enviada correctamente.')
+    } catch (reason: unknown) {
+      setApplicationMessage(reason instanceof Error ? reason.message : 'No se pudo enviar la postulación.')
+    } finally {
+      setApplying(false)
+    }
+  }
 
   // Abre automáticamente los detalles cuando el cálculo global termine
   useEffect(() => {
@@ -189,9 +211,16 @@ export function JobCard({ job, perfilCandidato, matchData: propMatchData }: JobC
       </div>
 
       <div className="mt-4 flex gap-2">
-        <Button className="flex-1">Postular ahora</Button>
+        <Button className="flex-1" onClick={handleApplication} disabled={applying || applicationMessage === 'Postulación enviada correctamente.'}>
+          {applying ? 'Enviando...' : 'Postular ahora'}
+        </Button>
         <Button variant="outline">Guardar</Button>
       </div>
+      {applicationMessage && (
+        <p className={`mt-2 text-sm font-medium ${applicationMessage.includes('correctamente') ? 'text-emerald-600' : 'text-destructive'}`} role="status">
+          {applicationMessage}
+        </p>
+      )}
     </Card>
   )
 }

@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Field, Input, Select, Textarea } from '@/components/ui/field'
 import { cn } from '@/lib/utils'
+import { subirCvCandidato } from '@/lib/api'
 import { useAuth } from '@/Backend/context/auth-context'
 
 const STEPS = ['Datos personales', 'CV y experiencia', 'Accesibilidad', 'Revisión']
@@ -38,6 +39,8 @@ export default function CandidatoPerfilWizard() {
   const [step, setStep] = useState(0)
   const [isSaved, setIsSaved] = useState(false)
   const [errorValidation, setErrorValidation] = useState('')
+  const [cvFile, setCvFile] = useState<File | null>(null)
+  const [isProcessingCv, setIsProcessingCv] = useState(false)
 
   // Desglosar el nombre guardado en nombres y apellidos para el formulario
   const nombrePartes = (candidato?.nombre || 'María Rojas Quispe').split(' ')
@@ -90,19 +93,37 @@ export default function CandidatoPerfilWizard() {
     })
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       if (file.type !== 'application/pdf') {
         alert('Por favor, sube un archivo en formato PDF.')
         return
       }
-      setFormData((prev) => ({
-        ...prev,
-        cvNombreFile: file.name,
-        // Simulación de extracción de texto para el algoritmo de IA
-        bio: prev.bio || `[Extraído de ${file.name}]: Especialista con experiencia comprobada en desarrollo web, SQL y accesibilidad digital.`,
-      }))
+      if (!candidato?.access_token) {
+        setErrorValidation('Inicia sesión nuevamente para procesar tu CV.')
+        return
+      }
+      setIsProcessingCv(true)
+      setErrorValidation('')
+      try {
+        const result = await subirCvCandidato(candidato.id, file, candidato.access_token)
+        const perfil = result.perfil
+        setFormData((prev) => ({
+          ...prev,
+          nombres: perfil.nombres || prev.nombres,
+          apellidos: perfil.apellidos || prev.apellidos,
+          puesto: perfil.puesto || prev.puesto,
+          bio: perfil.resumenPerfil || prev.bio,
+          adaptaciones: perfil.adaptaciones?.length ? perfil.adaptaciones : prev.adaptaciones,
+          cvNombreFile: file.name,
+        }))
+        setCvFile(file)
+      } catch (reason: unknown) {
+        setErrorValidation(reason instanceof Error ? reason.message : 'No se pudo procesar el CV.')
+      } finally {
+        setIsProcessingCv(false)
+      }
     }
   }
 
@@ -130,6 +151,9 @@ export default function CandidatoPerfilWizard() {
         numConadis: formData.numConadis,
         cvNombreFile: formData.cvNombreFile,
       })
+      if (cvFile && candidato?.access_token) {
+        await subirCvCandidato(candidato.id, cvFile, candidato.access_token)
+      }
       setIsSaved(true)
       setTimeout(() => router.push('/candidato'), 1500)
     } catch (reason: unknown) {
@@ -296,7 +320,7 @@ export default function CandidatoPerfilWizard() {
                     <p className="font-semibold text-foreground">{formData.cvNombreFile}</p>
                     <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-600">
                       <Check className="size-4" aria-hidden="true" />
-                      Archivo PDF cargado correctamente
+                      {isProcessingCv ? 'Analizando CV localmente...' : 'CV procesado; revisa los datos sugeridos'}
                     </p>
                     <label
                       htmlFor="cv-upload-input"
@@ -311,7 +335,7 @@ export default function CandidatoPerfilWizard() {
                       <UploadCloud className="size-6" aria-hidden="true" />
                     </span>
                     <p className="font-semibold text-foreground">Arrastra tu CV o selecciónalo</p>
-                    <p className="text-sm text-muted-foreground">Formato PDF · Máx. 5 MB</p>
+                    <p className="text-sm text-muted-foreground">Formato PDF · Máx. 10 MB</p>
                     <label htmlFor="cv-upload-input">
                       <span className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer mt-2">
                         Seleccionar archivo PDF

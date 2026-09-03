@@ -162,6 +162,89 @@ export function crearOferta(token: string, data: {
   return requestJson<OfertaApi>("/api/ofertas", "POST", data, token);
 }
 
+export function actualizarOferta(ofertaId: string, token: string, data: {
+  titulo: string;
+  modalidad: "Remoto" | "Híbrido" | "Presencial";
+  ubicacion: string;
+  experiencia: string;
+  salario: string;
+  funciones: string;
+  adaptaciones: string[];
+  activa: boolean;
+}) {
+  return requestJson<OfertaApi>(`/api/ofertas/${ofertaId}`, "PUT", data, token);
+}
+
+export function eliminarOferta(ofertaId: string, token: string) {
+  return requestJson<{ ok: boolean; mensaje: string }>(`/api/ofertas/${ofertaId}`, "DELETE", undefined, token);
+}
+
 export function listarOfertas() {
   return requestJson<OfertaApi[]>("/api/ofertas", "GET");
+}
+
+export function listarMisOfertas(token: string) {
+  return requestJson<OfertaApi[]>("/api/ofertas/mis-ofertas", "GET", undefined, token);
+}
+
+export interface PostulacionApi {
+  id: string;
+  oferta_id: string;
+  oferta_titulo: string;
+  candidato_id: string;
+  candidato_nombre: string;
+  dni: string;
+  email: string;
+  titulo_profesional: string;
+  resumen_perfil: string;
+  habilidades: string[];
+  adaptaciones: string[];
+  cv_nombre_file: string;
+  cv_disponible: boolean;
+  estado: string;
+  created_at: string;
+}
+
+export function postularAOferta(ofertaId: string, token: string) {
+  return requestJson<PostulacionApi>(`/api/ofertas/${ofertaId}/postular`, "POST", undefined, token);
+}
+
+export function listarPostulacionesEmpresa(token: string) {
+  return requestJson<PostulacionApi[]>("/api/postulaciones/empresa", "GET", undefined, token);
+}
+
+export async function descargarCvPostulacion(postulacionId: string, token: string) {
+  const res = await fetch(`${API_URL}/api/postulaciones/${postulacionId}/cv`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.detail || "No se pudo descargar el CV.");
+  }
+  return res.blob();
+}
+
+export function subirCvCandidato(userId: string, file: File, token: string) {
+  const formData = new FormData();
+  formData.append("file", file);
+  return fetch(`${API_URL}/api/users/candidato/${userId}/cv`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  }).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || "No se pudo guardar el CV.");
+    return data as {
+      ok: boolean;
+      nombre: string;
+      perfil: {
+        nombres?: string;
+        apellidos?: string;
+        puesto?: string;
+        resumenPerfil?: string;
+        habilidades?: string[];
+        adaptaciones?: string[];
+      };
+    };
+  });
 }

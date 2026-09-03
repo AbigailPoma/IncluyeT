@@ -1,3 +1,88 @@
+-- Esquema PostgreSQL local. La API tambien lo crea automaticamente al iniciar.
+create extension if not exists pgcrypto;
+
+create table if not exists users (
+  id uuid primary key default gen_random_uuid(),
+  email varchar(320) not null unique,
+  password_hash varchar(256) not null,
+  role varchar(20) not null check (role in ('candidato', 'empresa')),
+  email_verified boolean not null default false,
+  verification_token varchar(128) unique,
+  created_at timestamp not null default now()
+);
+
+create table if not exists candidatos (
+  id uuid primary key references users(id) on delete cascade,
+  nombre varchar(160) not null,
+  dni varchar(8) not null unique,
+  num_conadis varchar(80) not null default '',
+  conadis_valido boolean not null default false,
+  titulo_profesional varchar(160) not null default '',
+  resumen_perfil text not null default '',
+  habilidades jsonb not null default '[]',
+  adaptaciones jsonb not null default '[]',
+  cv_nombre_file varchar(255) not null default '',
+  cv_content_type varchar(100) not null default 'application/pdf',
+  cv_data bytea,
+  updated_at timestamp not null default now()
+);
+
+create table if not exists empresas (
+  id uuid primary key references users(id) on delete cascade,
+  ruc varchar(11) not null unique,
+  razon_social varchar(180) not null,
+  sector varchar(120) not null default '',
+  ciudad varchar(120) not null default '',
+  colaboradores varchar(80) not null default '',
+  descripcion text not null default '',
+  updated_at timestamp not null default now()
+);
+
+create table if not exists ofertas (
+  id uuid primary key default gen_random_uuid(),
+  empresa_id uuid not null references empresas(id) on delete cascade,
+  titulo varchar(180) not null,
+  modalidad varchar(20) not null check (modalidad in ('Remoto', 'Hibrido', 'Presencial', 'Híbrido')),
+  ubicacion varchar(160) not null default '',
+  experiencia varchar(160) not null default '',
+  salario varchar(120) not null default '',
+  funciones text not null,
+  adaptaciones jsonb not null default '[]',
+  activa boolean not null default true,
+  created_at timestamp not null default now(),
+  updated_at timestamp not null default now()
+);
+
+create table if not exists postulaciones (
+  id uuid primary key default gen_random_uuid(),
+  oferta_id uuid not null references ofertas(id) on delete cascade,
+  candidato_id uuid not null references candidatos(id) on delete cascade,
+  estado varchar(30) not null default 'recibida',
+  created_at timestamp not null default now(),
+  constraint uq_postulacion_oferta_candidato unique (oferta_id, candidato_id)
+);
+
+create index if not exists postulaciones_empresa_idx on postulaciones (oferta_id, created_at desc);
+
+create table if not exists ruc_registros (
+  ruc varchar(11) primary key,
+  razon_social varchar(180) not null,
+  activo boolean not null default true,
+  created_at timestamp not null default now()
+);
+
+create table if not exists conadis_registros (
+  dni varchar(8) primary key,
+  carnet varchar(80) not null unique,
+  tipo_discapacidad varchar(160) not null,
+  activo boolean not null default true,
+  created_at timestamp not null default now()
+);
+
+create index if not exists ofertas_activas_created_idx on ofertas (activa, created_at desc);
+
+/* El bloque anterior reemplaza las tablas y politicas especificas de Supabase. */
+/*
 create table if not exists public.candidatos (
   id uuid primary key references auth.users(id) on delete cascade,
   nombre text not null,
@@ -83,3 +168,4 @@ $$;
 create or replace trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
+*/

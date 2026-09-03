@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: incluyeT-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: incluye_t
+      POSTGRES_USER: incluye_t
+      POSTGRES_PASSWORD: incluye_t_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - incluyeT-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U incluye_t -d incluye_t"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  incluyeT-postgres-data:

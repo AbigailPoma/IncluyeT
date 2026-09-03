@@ -55,7 +55,7 @@ export default function RegistroEmpresaPage() {
       if (response.token_verificacion) {
         localStorage.setItem('verification_token', response.token_verificacion)
       }
-      router.push('/confirmacion?tipo=empresa')
+      router.push(`/confirmacion?tipo=empresa${response.token_verificacion ? `&token_hash=${encodeURIComponent(response.token_verificacion)}` : ''}`)
     } catch (reason: unknown) {
       setErrorMessage(reason instanceof Error ? reason.message : 'No se pudo crear la cuenta.')
     }

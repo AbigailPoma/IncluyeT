@@ -65,7 +65,8 @@ export default function RegistroCandidatoPage() {
         habilidades: ['Trabajo en equipo', 'Comunicación'],
         adaptaciones: conadisResult?.tipo_discapacidad ? [conadisResult.tipo_discapacidad] : ['Trabajo Remoto'],
       })
-      router.push('/confirmacion?tipo=candidato')
+      const token = localStorage.getItem('verification_token')
+      router.push(`/confirmacion?tipo=candidato${token ? `&token_hash=${encodeURIComponent(token)}` : ''}`)
     } catch (reason: unknown) {
       setError(reason instanceof Error ? reason.message : 'No se pudo crear la cuenta.')
     }

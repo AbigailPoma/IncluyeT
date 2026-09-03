@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ArrowRight, BookOpen, FileText, Filter, Lightbulb, Loader2, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, FileText, Filter, Lightbulb, Loader2 } from 'lucide-react'
 import { JobCard } from '@/components/job-card'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -52,7 +52,16 @@ export default function CandidatoDashboard() {
 
   // Nombre y perfil dinámicos desde el estado global de autenticación
   const nombreUsuario = candidato?.nombre?.split(' ')[0] || 'María'
-  const perfilActivo = candidato?.resumenPerfil || PERFIL_FALLBACK
+  const perfilActivo = candidato
+    ? [
+        candidato.tituloProfesional,
+        candidato.resumenPerfil,
+        candidato.habilidades?.length ? `Habilidades: ${candidato.habilidades.join(', ')}` : '',
+        candidato.adaptaciones?.length ? `Adaptaciones: ${candidato.adaptaciones.join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join('. ')
+    : PERFIL_FALLBACK
 
   // Filtrado dinámico por modalidad o etiquetas de accesibilidad
   const filtered =
@@ -64,8 +73,19 @@ export default function CandidatoDashboard() {
             j.adaptations.some((a) => a.toLowerCase().includes(active.split(' ')[0].toLowerCase())),
         )
 
-  // Ejecución en paralelo para consultar el backend de FastAPI (SBERT)
-  const ejecutarAnalisisIA = async () => {
+  // Actualiza las coincidencias automáticamente según el perfil y las ofertas disponibles.
+  useEffect(() => {
+    let active = true
+
+    if (availableJobs.length === 0) {
+      setMatches({})
+      setLoadingIA(false)
+      return () => {
+        active = false
+      }
+    }
+
+    const ejecutarAnalisisIA = async () => {
     setLoadingIA(true)
     try {
       const resultados = await Promise.all(
@@ -81,13 +101,19 @@ export default function CandidatoDashboard() {
         if (res) nuevosMatches[id] = res
       })
 
-      setMatches(nuevosMatches)
+      if (active) setMatches(nuevosMatches)
     } catch (error) {
       console.error('Error procesando compatibilidad IA:', error)
     } finally {
-      setLoadingIA(false)
+      if (active) setLoadingIA(false)
     }
-  }
+    }
+
+    ejecutarAnalisisIA()
+    return () => {
+      active = false
+    }
+  }, [availableJobs, perfilActivo])
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -102,18 +128,10 @@ export default function CandidatoDashboard() {
           </p>
         </div>
 
-        <Button
-          onClick={ejecutarAnalisisIA}
-          disabled={loadingIA}
-          className="gap-2 shrink-0 shadow-sm font-semibold"
-        >
-          {loadingIA ? (
-            <Loader2 className="size-4 animate-spin text-primary-foreground" />
-          ) : (
-            <Sparkles className="size-4 text-amber-300" />
-          )}
-          {loadingIA ? 'Calculando vectores...' : 'Calcular Match IA'}
-        </Button>
+        <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground" role="status" aria-live="polite">
+          {loadingIA && <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />}
+          {loadingIA ? 'Actualizando recomendaciones...' : 'Recomendaciones actualizadas'}
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">

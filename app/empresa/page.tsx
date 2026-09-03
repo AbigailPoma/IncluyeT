@@ -5,9 +5,18 @@ import { ArrowRight, Bell, BriefcaseBusiness, Building2, FilePlus2, Users } from
 import { useAuth } from '@/Backend/context/auth-context'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { listarMisOfertas } from '@/lib/api'
+import type { OfertaApi } from '@/lib/api'
+import { useEffect, useState } from 'react'
 
 export default function EmpresaDashboard() {
   const { empresa } = useAuth()
+  const [ofertas, setOfertas] = useState<OfertaApi[]>([])
+
+  useEffect(() => {
+    if (!empresa?.access_token) return
+    listarMisOfertas(empresa.access_token).then(setOfertas).catch(() => setOfertas([]))
+  }, [empresa?.access_token])
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -22,10 +31,36 @@ export default function EmpresaDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <SummaryCard icon={BriefcaseBusiness} label="Ofertas activas" value="0" />
+        <SummaryCard icon={BriefcaseBusiness} label="Ofertas activas" value={String(ofertas.filter((oferta) => oferta).length)} />
         <SummaryCard icon={Users} label="Postulaciones recibidas" value="0" />
         <SummaryCard icon={Bell} label="Notificaciones nuevas" value="0" />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <BriefcaseBusiness className="size-5 text-primary" aria-hidden="true" />
+            Tus ofertas de empleo
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {ofertas.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aún no tienes ofertas publicadas.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {ofertas.map((oferta) => (
+                <div key={oferta.id} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="font-semibold text-foreground">{oferta.title}</h2>
+                    <p className="text-sm text-muted-foreground">{oferta.location || 'Ubicación no especificada'} · {oferta.modality}</p>
+                  </div>
+                  <span className="text-sm font-medium text-emerald-600">Publicada</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

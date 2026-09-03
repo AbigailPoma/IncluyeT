@@ -41,29 +41,6 @@ export interface EmpresaUser {
   access_token?: string
 }
 
-const PERFIL_DEFAULT: CandidatoUser = {
-  id: 'cand-001',
-  nombre: 'María Silva',
-  email: 'maria.silva@email.com',
-  dni: '12345678',
-  numConadis: 'C12345',
-  conadisValido: true,
-  tituloProfesional: 'Desarrolladora Frontend Senior',
-  resumenPerfil: 'Desarrolladora Frontend especializada en React, TypeScript y accesibilidad web WCAG. Experiencia en proyectos inclusivos, buscando vacantes con modalidad remota o jornada flexible.',
-  habilidades: ['React', 'TypeScript', 'WCAG 2.1', 'Next.js', 'Tailwind CSS'],
-  adaptaciones: ['Lector de pantalla', 'Remoto', 'Jornada flexible'],
-  cvNombreFile: 'CV_Maria_Silva_Frontend.pdf',
-  emailVerificado: true,
-}
-
-const EMPRESA_DEMO: EmpresaUser = {
-  id: 'empresa-demo',
-  ruc: '20123456789',
-  razon_social: 'Empresa Demo',
-  email: 'empresa.demo@ejemplo.com',
-  emailVerificado: true,
-}
-
 interface AuthContextType {
   candidato: CandidatoUser | null
   empresa: EmpresaUser | null
@@ -90,13 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (saved) {
       try {
         const user = JSON.parse(saved) as CandidatoUser
-        // Elimina la sesión demo antigua que se creaba automáticamente.
-        if (user.id !== PERFIL_DEFAULT.id) {
-          setCandidato(user)
-        } else {
-          localStorage.removeItem('candidato_session')
-          localStorage.removeItem('candidato_account')
-        }
+        setCandidato(user)
       } catch {
         localStorage.removeItem('candidato_session')
       }
@@ -130,10 +101,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       saveState(response.usuario as unknown as CandidatoUser)
       return true
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production' && email === 'candidato.demo@ejemplo.com' && password === 'CandidatoDemo123!') {
-        saveState({ ...PERFIL_DEFAULT, email })
-        return true
-      }
       throw error
     }
   }
@@ -147,11 +114,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('empresa_session', JSON.stringify(account))
       return true
     } catch (error) {
-      if (process.env.NODE_ENV !== 'production' && usuario === 'empresa.demo@ejemplo.com' && password === 'EmpresaDemo123!') {
-        setEmpresa(EMPRESA_DEMO)
-        localStorage.setItem('empresa_session', JSON.stringify(EMPRESA_DEMO))
-        return true
-      }
       throw error
     }
   }

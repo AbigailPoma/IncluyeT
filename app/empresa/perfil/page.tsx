@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, ChevronLeft, ChevronRight, HeartHandshake, ImagePlus, Info, Trash2 } from "lucide-react"
+import { Check, ChevronLeft, ChevronRight, FileText, HeartHandshake, ImagePlus, Info, Trash2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Field, Input, Select, Textarea } from "@/components/ui/field"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/Backend/context/auth-context"
+import { descargarCvPostulacion, listarPostulacionesEmpresa, type PostulacionApi } from "@/lib/api"
 
 const STEPS = ["Datos institucionales", "Instalaciones", "Políticas de inclusión", "Revisión"]
 
@@ -28,6 +29,7 @@ export default function EmpresaPerfilWizard() {
   const [colaboradores, setColaboradores] = useState("201-500")
   const [descripcion, setDescripcion] = useState("")
   const [error, setError] = useState("")
+  const [postulaciones, setPostulaciones] = useState<PostulacionApi[]>([])
   const progress = ((step + 1) / STEPS.length) * 100
 
   useEffect(() => {
@@ -38,6 +40,26 @@ export default function EmpresaPerfilWizard() {
     setColaboradores(empresa.colaboradores || "201-500")
     setDescripcion(empresa.descripcion || "")
   }, [empresa])
+
+  useEffect(() => {
+    if (!empresa?.access_token) return
+    listarPostulacionesEmpresa(empresa.access_token).then(setPostulaciones).catch(() => setPostulaciones([]))
+  }, [empresa?.access_token])
+
+  async function handleDownloadCv(postulacion: PostulacionApi) {
+    if (!empresa?.access_token) return
+    try {
+      const blob = await descargarCvPostulacion(postulacion.id, empresa.access_token)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = postulacion.cv_nombre_file || "cv-candidato.pdf"
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (reason: unknown) {
+      setError(reason instanceof Error ? reason.message : "No se pudo descargar el CV.")
+    }
+  }
 
   async function handleSave() {
     try {
@@ -213,6 +235,47 @@ export default function EmpresaPerfilWizard() {
               </dl>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 font-display text-lg font-bold text-foreground">
+                <Users className="size-5 text-primary" aria-hidden="true" />
+                Candidatos postulados
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">Personas que enviaron su perfil a tus ofertas.</p>
+            </div>
+            <span className="text-sm font-semibold text-primary">{postulaciones.length}</span>
+          </div>
+          <div className="mt-5 divide-y divide-border">
+            {postulaciones.length === 0 ? (
+              <p className="border-t border-border pt-4 text-sm text-muted-foreground">Todavía no hay postulaciones recibidas.</p>
+            ) : postulaciones.map((postulacion) => (
+              <article key={postulacion.id} className="py-4 first:pt-0 last:pb-0">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground">{postulacion.candidato_nombre}</h3>
+                    <p className="text-sm text-primary">{postulacion.titulo_profesional || "Perfil profesional no especificado"}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Oferta: {postulacion.oferta_titulo} · DNI: {postulacion.dni}</p>
+                  </div>
+                  {postulacion.cv_disponible && (
+                    <Button type="button" variant="outline" size="sm" onClick={() => handleDownloadCv(postulacion)}>
+                      <FileText className="size-4" aria-hidden="true" />
+                      Ver CV
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{postulacion.resumen_perfil || "Sin resumen profesional."}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {postulacion.habilidades.map((habilidad) => <span key={habilidad} className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-foreground">{habilidad}</span>)}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">Contacto: {postulacion.email} · Estado: {postulacion.estado}</p>
+              </article>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
