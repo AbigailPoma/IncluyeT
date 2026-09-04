@@ -1,10 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { courses } from "@/lib/data"
+import { courses as demoCourses } from "@/lib/data"
+import { inscribirseCurso, listarCursos, listarInscripciones, type CourseApi } from "@/lib/api"
+import { useAuth } from "@/Backend/context/auth-context"
 import { GraduationCap, Building2, Monitor, MapPin, Blend, CheckCircle2, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -12,16 +14,29 @@ const entities = ["Todas", "MTPE", "CONADIS", "SENATI"] as const
 const modalities = ["Todas", "Virtual", "Presencial", "Semipresencial"] as const
 
 export default function CursosPage() {
+  const { candidato } = useAuth()
   const [entity, setEntity] = useState<(typeof entities)[number]>("Todas")
   const [modality, setModality] = useState<(typeof modalities)[number]>("Todas")
+  const [courses, setCourses] = useState<CourseApi[]>(demoCourses.map((course) => ({ id: course.id, title: course.title, entity: course.entity, modality: course.modality, duration: course.duration, seats: course.seats, topic: course.topic })))
   const [enrolled, setEnrolled] = useState<string[]>([])
+
+  useEffect(() => {
+    listarCursos().then(setCourses).catch(() => undefined)
+    if (candidato?.access_token) listarInscripciones(candidato.access_token).then(setEnrolled).catch(() => undefined)
+  }, [candidato?.access_token])
 
   const filtered = courses.filter(
     (c) => (entity === "Todas" || c.entity === entity) && (modality === "Todas" || c.modality === modality),
   )
 
-  function toggleEnroll(id: string) {
-    setEnrolled((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  async function toggleEnroll(id: string) {
+    if (!candidato?.access_token) return
+    try {
+      await inscribirseCurso(id, candidato.access_token)
+      setEnrolled((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    } catch {
+      // The persisted state remains unchanged when the API rejects a duplicate enrollment.
+    }
   }
 
   const modalityIcon = (m: string) => {

@@ -18,9 +18,9 @@ from sqlalchemy.orm import Session
 from pypdf import PdfReader
 
 try:
-    from Backend.database import Candidato, Empresa, Oferta, Postulacion, User, RucRegistro, ConadisRegistro, Base, configure_database, run_seed
+    from Backend.database import Candidato, Empresa, Oferta, OfertaGuardada, Postulacion, User, RucRegistro, ConadisRegistro, Curso, Inscripcion, Notificacion, Base, configure_database, ensure_legacy_columns, run_seed
 except ModuleNotFoundError:
-    from database import Candidato, Empresa, Oferta, Postulacion, User, RucRegistro, ConadisRegistro, Base, configure_database, run_seed
+    from database import Candidato, Empresa, Oferta, OfertaGuardada, Postulacion, User, RucRegistro, ConadisRegistro, Curso, Inscripcion, Notificacion, Base, configure_database, ensure_legacy_columns, run_seed
 import uvicorn
 
 load_dotenv()
@@ -32,6 +32,7 @@ if not DATABASE_URL or not JWT_SECRET:
     raise RuntimeError("Configura DATABASE_URL y JWT_SECRET en Backend/.env")
 engine, SessionLocal = configure_database(DATABASE_URL)
 Base.metadata.create_all(engine)
+ensure_legacy_columns(engine)
 run_seed(SessionLocal, Path(__file__).with_name("seed.sql"))
 
 app = FastAPI(
@@ -102,6 +103,8 @@ class CandidatoUpdateRequest(BaseModel):
     habilidades: list[str] = Field(default_factory=list)
     adaptaciones: list[str] = Field(default_factory=list)
     cvNombreFile: str = ""
+    telefono: str = ""
+    departamento: str = ""
 
 class EmpresaUpdateRequest(BaseModel):
     razon_social: str
@@ -143,6 +146,14 @@ class PostulacionResponse(BaseModel):
     cv_nombre_file: str
     cv_disponible: bool
     estado: str
+    created_at: datetime
+
+class NotificacionResponse(BaseModel):
+    id: str
+    tipo: str
+    titulo: str
+    cuerpo: str
+    leida: bool
     created_at: datetime
 
 def get_db():
@@ -234,6 +245,8 @@ def candidato_response(row: Candidato, user: User | None = None) -> dict:
         "habilidades": row.habilidades or [],
         "adaptaciones": row.adaptaciones or [],
         "cvNombreFile": row.cv_nombre_file,
+        "telefono": row.telefono,
+        "departamento": row.departamento,
         "emailVerificado": bool(user and user.email_verified),
     }
 
@@ -256,6 +269,9 @@ def postulacion_response(postulacion: Postulacion) -> dict:
         "estado": postulacion.estado,
         "created_at": postulacion.created_at,
     }
+
+def notification_response(notification: Notificacion) -> dict:
+    return {"id": notification.id, "tipo": notification.tipo, "titulo": notification.titulo, "cuerpo": notification.cuerpo, "leida": notification.leida, "created_at": notification.created_at}
 
 def extract_cv_profile(content: bytes, filename: str) -> dict:
     try:
@@ -398,6 +414,8 @@ def update_candidato(user_id: str, request: CandidatoUpdateRequest, authorizatio
     if not profile:
         raise HTTPException(status_code=404, detail="Candidato no encontrado.")
     values = request.model_dump()
+    values["telefono"] = values.get("telefono", "")
+    values["departamento"] = values.get("departamento", "")
     for key, value in values.items():
         setattr(profile, {"numConadis": "num_conadis", "conadisValido": "conadis_valido", "tituloProfesional": "titulo_profesional", "resumenPerfil": "resumen_perfil", "cvNombreFile": "cv_nombre_file"}.get(key, key), value)
     db.commit()
@@ -456,6 +474,14 @@ def listar_ofertas(db: Session = Depends(get_db)):
     ofertas = db.scalars(select(Oferta).where(Oferta.activa.is_(True)).order_by(Oferta.created_at.desc())).all()
     return [oferta_response(oferta, oferta.empresa.razon_social) for oferta in ofertas]
 
+@app.get("/api/empresas/{empresa_id}", response_model=dict)
+def obtener_empresa_publica(empresa_id: str, db: Session = Depends(get_db)):
+    empresa = db.get(Empresa, empresa_id)
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    ofertas = [oferta_response(oferta, empresa.razon_social) for oferta in empresa.ofertas if oferta.activa]
+    return {"id": empresa.id, "name": empresa.razon_social, "sector": empresa.sector, "location": empresa.ciudad, "size": empresa.colaboradores, "about": empresa.descripcion, "openRoles": len(ofertas), "offers": ofertas, "accreditations": []}
+
 @app.get("/api/ofertas/mis-ofertas", response_model=list[dict])
 def listar_mis_ofertas(authorization: str = Header(...), db: Session = Depends(get_db)):
     empresa = authenticated_user(authorization, db)
@@ -478,9 +504,78 @@ def postularse(oferta_id: str, authorization: str = Header(...), db: Session = D
         raise HTTPException(status_code=409, detail="Ya te postulaste a esta oferta.")
     postulacion = Postulacion(oferta_id=oferta.id, candidato_id=candidato.id)
     db.add(postulacion)
+    db.add(Notificacion(user_id=oferta.empresa_id, tipo="postulacion", titulo=f"Nueva postulación: {oferta.titulo}", cuerpo=f"{candidato.nombre} postuló a tu oferta."))
+    db.add(Notificacion(user_id=candidato.id, tipo="postulacion", titulo="Postulación enviada", cuerpo=f"Tu postulación a {oferta.titulo} fue recibida."))
     db.commit()
     db.refresh(postulacion)
     return postulacion_response(postulacion)
+
+@app.get("/api/postulaciones/candidato", response_model=list[PostulacionResponse])
+def listar_postulaciones_candidato(authorization: str = Header(...), db: Session = Depends(get_db)):
+    candidato = authenticated_user(authorization, db)
+    if candidato.role != "candidato":
+        raise HTTPException(status_code=403, detail="Solo un candidato puede consultar su historial.")
+    items = db.scalars(select(Postulacion).where(Postulacion.candidato_id == candidato.id).order_by(Postulacion.created_at.desc())).all()
+    return [postulacion_response(item) for item in items]
+
+@app.patch("/api/postulaciones/{postulacion_id}/estado", response_model=PostulacionResponse)
+def actualizar_estado_postulacion(postulacion_id: str, estado: str, authorization: str = Header(...), db: Session = Depends(get_db)):
+    empresa = authenticated_user(authorization, db)
+    postulacion = db.get(Postulacion, postulacion_id)
+    estados = {"recibida", "en revisión", "entrevista", "aceptada", "rechazada"}
+    if not postulacion or postulacion.oferta.empresa_id != empresa.id:
+        raise HTTPException(status_code=404, detail="Postulación no encontrada.")
+    if estado not in estados:
+        raise HTTPException(status_code=400, detail="Estado de postulación no válido.")
+    postulacion.estado = estado
+    db.add(Notificacion(user_id=postulacion.candidato_id, tipo="estado", titulo="Actualización de postulación", cuerpo=f"Tu postulación a {postulacion.oferta.titulo} cambió a: {estado}."))
+    db.commit()
+    return postulacion_response(postulacion)
+
+@app.get("/api/cursos", response_model=list[dict])
+def listar_cursos(db: Session = Depends(get_db)):
+    return [{"id": c.id, "title": c.titulo, "entity": c.entidad, "modality": c.modalidad, "duration": c.duracion, "seats": c.cupos, "topic": c.tema} for c in db.scalars(select(Curso).where(Curso.activo.is_(True))).all()]
+
+@app.get("/api/cursos/inscripciones", response_model=list[str])
+def listar_inscripciones(authorization: str = Header(...), db: Session = Depends(get_db)):
+    user = authenticated_user(authorization, db)
+    return list(db.scalars(select(Inscripcion.curso_id).where(Inscripcion.candidato_id == user.id)).all())
+
+@app.post("/api/cursos/{curso_id}/inscribirse")
+def inscribirse_curso(curso_id: str, authorization: str = Header(...), db: Session = Depends(get_db)):
+    user = authenticated_user(authorization, db)
+    if user.role != "candidato" or not db.get(Curso, curso_id):
+        raise HTTPException(status_code=404, detail="Curso no disponible.")
+    if db.scalar(select(Inscripcion).where(Inscripcion.curso_id == curso_id, Inscripcion.candidato_id == user.id)):
+        raise HTTPException(status_code=409, detail="Ya estás inscrito en este curso.")
+    db.add(Inscripcion(curso_id=curso_id, candidato_id=user.id))
+    db.commit()
+    return {"ok": True, "curso_id": curso_id}
+
+@app.get("/api/notificaciones", response_model=list[NotificacionResponse])
+def listar_notificaciones(authorization: str = Header(...), db: Session = Depends(get_db)):
+    user = authenticated_user(authorization, db)
+    return [notification_response(item) for item in db.scalars(select(Notificacion).where(Notificacion.user_id == user.id).order_by(Notificacion.created_at.desc())).all()]
+
+@app.patch("/api/notificaciones/leidas")
+def marcar_notificaciones_leidas(authorization: str = Header(...), db: Session = Depends(get_db)):
+    user = authenticated_user(authorization, db)
+    items = db.scalars(select(Notificacion).where(Notificacion.user_id == user.id, Notificacion.leida.is_(False))).all()
+    for item in items:
+        item.leida = True
+    db.commit()
+    return {"ok": True, "actualizadas": len(items)}
+
+@app.post("/api/ofertas/{oferta_id}/guardar")
+def guardar_oferta(oferta_id: str, authorization: str = Header(...), db: Session = Depends(get_db)):
+    user = authenticated_user(authorization, db)
+    if user.role != "candidato" or not db.get(Oferta, oferta_id):
+        raise HTTPException(status_code=404, detail="Oferta no encontrada.")
+    if db.scalar(select(OfertaGuardada).where(OfertaGuardada.oferta_id == oferta_id, OfertaGuardada.candidato_id == user.id)):
+        return {"ok": True, "guardada": True}
+    db.add(OfertaGuardada(oferta_id=oferta_id, candidato_id=user.id))
+    db.commit()
+    return {"ok": True, "guardada": True}
 
 @app.get("/api/postulaciones/empresa", response_model=list[PostulacionResponse])
 def listar_postulaciones_empresa(authorization: str = Header(...), db: Session = Depends(get_db)):

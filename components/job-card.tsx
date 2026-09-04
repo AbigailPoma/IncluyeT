@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import type { Job } from '@/lib/data'
 import { obtenerMatchIA } from '@/lib/api'
-import { postularAOferta } from '@/lib/api'
+import { guardarOferta, postularAOferta } from '@/lib/api'
 import { useAuth } from '@/Backend/context/auth-context'
 
 export interface MatchResult {
@@ -41,6 +41,7 @@ export function JobCard({ job, perfilCandidato, matchData: propMatchData }: JobC
   const [showDetails, setShowDetails] = useState(false)
   const [applicationMessage, setApplicationMessage] = useState('')
   const [applying, setApplying] = useState(false)
+  const [saved, setSaved] = useState(false)
   const { candidato } = useAuth()
 
   // Prioriza los datos recibidos por prop (procesamiento masivo) sobre los locales
@@ -61,6 +62,12 @@ export function JobCard({ job, perfilCandidato, matchData: propMatchData }: JobC
     } finally {
       setApplying(false)
     }
+  }
+
+  const handleSave = async () => {
+    if (!candidato?.access_token) return
+    await guardarOferta(job.id, candidato.access_token)
+    setSaved(true)
   }
 
   // Abre automáticamente los detalles cuando el cálculo global termine
@@ -214,7 +221,7 @@ export function JobCard({ job, perfilCandidato, matchData: propMatchData }: JobC
         <Button className="flex-1" onClick={handleApplication} disabled={applying || applicationMessage === 'Postulación enviada correctamente.'}>
           {applying ? 'Enviando...' : 'Postular ahora'}
         </Button>
-        <Button variant="outline">Guardar</Button>
+        <Button variant="outline" onClick={handleSave} disabled={saved}>{saved ? 'Guardada' : 'Guardar'}</Button>
       </div>
       {applicationMessage && (
         <p className={`mt-2 text-sm font-medium ${applicationMessage.includes('correctamente') ? 'text-emerald-600' : 'text-destructive'}`} role="status">

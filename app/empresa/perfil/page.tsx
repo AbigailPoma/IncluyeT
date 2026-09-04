@@ -136,7 +136,7 @@ export default function EmpresaPerfilWizard() {
                 <Input id="razon" value={razonSocial} onChange={(e) => setRazonSocial(e.target.value)} />
               </Field>
               <Field label="RUC" htmlFor="ruc" required>
-                <Input id="ruc" defaultValue="20123456789" inputMode="numeric" readOnly />
+                <Input id="ruc" value={empresa?.ruc || ""} inputMode="numeric" readOnly />
               </Field>
               <Field label="Sector" htmlFor="sector">
                 <Select id="sector" value={sector} onChange={(e) => setSector(e.target.value)}>

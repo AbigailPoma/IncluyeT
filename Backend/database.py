@@ -40,6 +40,8 @@ class Candidato(Base):
     cv_nombre_file: Mapped[str] = mapped_column(String(255), default="")
     cv_content_type: Mapped[str] = mapped_column(String(100), default="application/pdf")
     cv_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    telefono: Mapped[str] = mapped_column(String(40), default="")
+    departamento: Mapped[str] = mapped_column(String(100), default="")
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user: Mapped[User] = relationship(back_populates="candidato")
@@ -95,6 +97,54 @@ class Postulacion(Base):
     candidato: Mapped[Candidato] = relationship()
 
 
+class OfertaGuardada(Base):
+    __tablename__ = "ofertas_guardadas"
+    __table_args__ = (UniqueConstraint("oferta_id", "candidato_id", name="uq_oferta_guardada"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    oferta_id: Mapped[str] = mapped_column(String(36), ForeignKey("ofertas.id", ondelete="CASCADE"), index=True)
+    candidato_id: Mapped[str] = mapped_column(String(36), ForeignKey("candidatos.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    oferta: Mapped[Oferta] = relationship()
+
+
+class Curso(Base):
+    __tablename__ = "cursos"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    titulo: Mapped[str] = mapped_column(String(180))
+    entidad: Mapped[str] = mapped_column(String(40))
+    modalidad: Mapped[str] = mapped_column(String(40))
+    duracion: Mapped[str] = mapped_column(String(80))
+    cupos: Mapped[str] = mapped_column(String(100))
+    tema: Mapped[str] = mapped_column(String(100))
+    activo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class Inscripcion(Base):
+    __tablename__ = "inscripciones"
+    __table_args__ = (UniqueConstraint("curso_id", "candidato_id", name="uq_inscripcion_curso_candidato"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    curso_id: Mapped[str] = mapped_column(String(36), ForeignKey("cursos.id", ondelete="CASCADE"), index=True)
+    candidato_id: Mapped[str] = mapped_column(String(36), ForeignKey("candidatos.id", ondelete="CASCADE"), index=True)
+    estado: Mapped[str] = mapped_column(String(30), default="inscrito")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    curso: Mapped[Curso] = relationship()
+
+
+class Notificacion(Base):
+    __tablename__ = "notificaciones"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    tipo: Mapped[str] = mapped_column(String(30))
+    titulo: Mapped[str] = mapped_column(String(180))
+    cuerpo: Mapped[str] = mapped_column(Text)
+    leida: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class RucRegistro(Base):
     __tablename__ = "ruc_registros"
 
@@ -122,6 +172,12 @@ def configure_database(database_url: str):
     DATABASE_URL = database_url
     engine = create_engine(database_url, pool_pre_ping=True)
     return engine, sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+
+def ensure_legacy_columns(engine):
+    with engine.begin() as connection:
+        for column in ("telefono", "departamento"):
+            connection.execute(text(f"ALTER TABLE candidatos ADD COLUMN IF NOT EXISTS {column} VARCHAR(100) NOT NULL DEFAULT ''"))
 
 
 def run_seed(session_factory, seed_path: str | Path):

@@ -51,7 +51,7 @@ export default function CandidatoPerfilWizard() {
     nombres: initialNombres,
     apellidos: initialApellidos,
     telefono: '',
-    departamento: 'Lima',
+    departamento: candidato?.departamento || 'Lima',
     bio:
       candidato?.resumenPerfil ||
       'Profesional con experiencia en desarrollo y análisis de datos, buscando vacantes en modalidad remota con herramientas de accesibilidad.',
@@ -73,6 +73,8 @@ export default function CandidatoPerfilWizard() {
       adaptaciones: candidato.adaptaciones,
       numConadis: candidato.numConadis || '',
       cvNombreFile: candidato.cvNombreFile || '',
+      telefono: candidato.telefono || '',
+      departamento: candidato.departamento || 'Lima',
     }))
   }, [candidato])
 
@@ -150,6 +152,8 @@ export default function CandidatoPerfilWizard() {
         adaptaciones: formData.adaptaciones,
         numConadis: formData.numConadis,
         cvNombreFile: formData.cvNombreFile,
+        telefono: formData.telefono,
+        departamento: formData.departamento,
       })
       if (cvFile && candidato?.access_token) {
         await subirCvCandidato(candidato.id, cvFile, candidato.access_token)

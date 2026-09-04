@@ -1,13 +1,19 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { JobCard } from "@/components/job-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { companyProfile, jobs } from "@/lib/data"
+import { obtenerEmpresaPublica } from "@/lib/api"
 import { Award, Building2, CheckCircle2, Globe, Heart, MapPin, Users } from "lucide-react"
 
 export default function EmpresaPublicProfile({ params }: { params: { slug: string } }) {
-  void params
-  const company = companyProfile
+  const [company, setCompany] = useState({ ...companyProfile, openRoles: jobs.length, offers: jobs })
+  useEffect(() => {
+    obtenerEmpresaPublica(params.slug).then((data) => setCompany({ ...companyProfile, ...data, openRoles: data.openRoles, offers: data.offers })).catch(() => undefined)
+  }, [params.slug])
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -88,7 +94,7 @@ export default function EmpresaPublicProfile({ params }: { params: { slug: strin
               Vacantes abiertas ({jobs.length})
             </h2>
             <ul className="flex flex-col gap-4">
-              {jobs.map((job) => (
+              {company.offers.map((job) => (
                 <li key={job.id}>
                   <JobCard job={{ ...job, company: company.name }} />
                 </li>
@@ -102,7 +108,7 @@ export default function EmpresaPublicProfile({ params }: { params: { slug: strin
             <CardContent className="flex flex-col gap-4 p-5">
               <Stat label="Colaboradores" value={company.size} />
               <Stat label="Sector" value={company.sector} />
-              <Stat label="Vacantes activas" value={`${jobs.length}`} />
+              <Stat label="Vacantes activas" value={`${company.openRoles}`} />
               <Stat label="Índice de inclusión" value={company.inclusionScore} highlight />
             </CardContent>
           </Card>

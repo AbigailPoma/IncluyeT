@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   Briefcase,
   CheckCircle2,
@@ -12,11 +12,13 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { listarNotificaciones, marcarNotificacionesLeidas } from '@/lib/api'
+import { useAuth } from '@/Backend/context/auth-context'
 
 type NotifType = 'aceptada' | 'rechazada' | 'mensaje' | 'oferta'
 
 type Notif = {
-  id: number
+  id: string | number
   type: NotifType
   title: string
   body: string
@@ -86,7 +88,12 @@ const INITIAL: Notif[] = [
 ]
 
 export default function CandidatoNotificaciones() {
+  const { candidato } = useAuth()
   const [items, setItems] = useState(INITIAL)
+  useEffect(() => {
+    if (!candidato?.access_token) return
+    listarNotificaciones(candidato.access_token).then((notifications) => setItems(notifications.map((item) => ({ id: item.id, type: (item.tipo === 'estado' ? 'aceptada' : 'mensaje') as NotifType, title: item.titulo, body: item.cuerpo, time: new Date(item.created_at).toLocaleString('es-PE'), unread: !item.leida })))).catch(() => undefined)
+  }, [candidato?.access_token])
   const unreadCount = items.filter((i) => i.unread).length
 
   return (
@@ -104,9 +111,10 @@ export default function CandidatoNotificaciones() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() =>
+          onClick={async () => {
+            if (candidato?.access_token) await marcarNotificacionesLeidas(candidato.access_token)
             setItems((prev) => prev.map((i) => ({ ...i, unread: false })))
-          }
+          }}
         >
           Marcar todas como leídas
         </Button>

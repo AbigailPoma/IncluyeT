@@ -186,6 +186,48 @@ export function listarOfertas() {
 export function listarMisOfertas(token: string) {
   return requestJson<OfertaApi[]>("/api/ofertas/mis-ofertas", "GET", undefined, token);
 }
+  export function guardarOferta(ofertaId: string, token: string) {
+    return requestJson<{ ok: boolean; guardada: boolean }>(`/api/ofertas/${ofertaId}/guardar`, "POST", undefined, token);
+  }
+
+  export function listarCursos() {
+    return requestJson<CourseApi[]>("/api/cursos", "GET");
+  }
+
+  export interface CourseApi {
+    id: string;
+    title: string;
+    entity: "MTPE" | "CONADIS" | "SENATI";
+    modality: "Virtual" | "Presencial" | "Semipresencial";
+    duration: string;
+    seats: string;
+    topic: string;
+  }
+
+  export function listarInscripciones(token: string) {
+    return requestJson<string[]>("/api/cursos/inscripciones", "GET", undefined, token);
+  }
+
+  export function inscribirseCurso(cursoId: string, token: string) {
+    return requestJson<{ ok: boolean; curso_id: string }>(`/api/cursos/${cursoId}/inscribirse`, "POST", undefined, token);
+  }
+
+  export function listarNotificaciones(token: string) {
+    return requestJson<NotificationApi[]>("/api/notificaciones", "GET", undefined, token);
+  }
+
+  export interface NotificationApi {
+    id: string;
+    tipo: string;
+    titulo: string;
+    cuerpo: string;
+    leida: boolean;
+    created_at: string;
+  }
+
+  export function marcarNotificacionesLeidas(token: string) {
+    return requestJson<{ ok: boolean }>("/api/notificaciones/leidas", "PATCH", undefined, token);
+  }
 
 export interface PostulacionApi {
   id: string;
@@ -247,4 +289,8 @@ export function subirCvCandidato(userId: string, file: File, token: string) {
       };
     };
   });
+}
+
+export function obtenerEmpresaPublica(empresaId: string) {
+  return requestJson<{ id: string; name: string; sector: string; location: string; size: string; about: string; openRoles: number; offers: OfertaApi[]; accreditations: string[] }>(`/api/empresas/${empresaId}`, "GET");
 }

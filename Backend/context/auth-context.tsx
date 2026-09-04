@@ -26,6 +26,8 @@ export interface CandidatoUser {
   cvNombreFile?: string
   emailVerificado: boolean
   access_token?: string
+  telefono?: string
+  departamento?: string
 }
 
 export interface EmpresaUser {

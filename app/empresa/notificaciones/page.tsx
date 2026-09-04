@@ -1,11 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { CheckCircle2, Eye, FileText, Star, UserPlus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { listarNotificaciones, marcarNotificacionesLeidas } from "@/lib/api"
+import { useAuth } from "@/Backend/context/auth-context"
 
 type NotifType = "postulacion" | "match" | "vista" | "cierre"
 
@@ -41,7 +43,7 @@ const INITIAL = [
     type: "postulacion" as NotifType,
     title: "Nueva postulación: Asistente Administrativo",
     body: "Diego Ramírez postuló a tu oferta y requiere accesibilidad física.",
-        className: 'bg-accent/12 text-accent-strong',
+    time: "Ayer",
     unread: true,
   },
   {
@@ -54,8 +56,22 @@ const INITIAL = [
   },
 ]
 
+type NotificationItem = {
+  id: string | number
+  type: NotifType
+  title: string
+  body: string
+  time: string
+  unread: boolean
+}
+
 export default function EmpresaNotificaciones() {
-  const [items, setItems] = useState(INITIAL)
+  const { empresa } = useAuth()
+  const [items, setItems] = useState<NotificationItem[]>(INITIAL)
+  useEffect(() => {
+    if (!empresa?.access_token) return
+    listarNotificaciones(empresa.access_token).then((notifications) => setItems(notifications.map((item) => ({ id: item.id, type: (item.tipo === 'postulacion' ? 'postulacion' : 'match') as NotifType, title: item.titulo, body: item.cuerpo, time: new Date(item.created_at).toLocaleString('es-PE'), unread: !item.leida })))).catch(() => undefined)
+  }, [empresa?.access_token])
   const unread = items.filter((i) => i.unread).length
 
   return (
@@ -73,7 +89,10 @@ export default function EmpresaNotificaciones() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setItems((prev) => prev.map((i) => ({ ...i, unread: false })))}
+          onClick={async () => {
+            if (empresa?.access_token) await marcarNotificacionesLeidas(empresa.access_token)
+            setItems((prev) => prev.map((i) => ({ ...i, unread: false })))
+          }}
         >
           Marcar todas como leídas
         </Button>
